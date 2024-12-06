@@ -1,5 +1,32 @@
+# Python
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
+.Python
+env/
 venv/
-.vercel
+.env
+
+# Model files
+*.weights
+*.h5
+*.model
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.joblib
+models/
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
+node_modules/
+
+# Logs
+*.log
