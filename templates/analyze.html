@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Page</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .back-button {
+            padding: 10px 20px;
+            background-color: #666;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        .analyze-button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .reset-button {
+            padding: 10px 20px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .header div {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ type.title() }} Product Analysis</h1>
+            <div>
+                <button class="reset-button" onclick="window.location.href='/reset/{{ type }}'">Reset Counter</button>
+                <button class="back-button" onclick="window.location.href='/'">Back to Home</button>
+            </div>
+        </div>
+
+        <div class="file-input">
+            <input type="file" id="imageInput" accept="image/*">
+            <button class="analyze-button" onclick="submitForm('{{ type }}')">Analyze Image</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Serial No.</th>
+                    <th>Timestamp</th>
+                    <th>Brand/Produce</th>
+                    <th>Expiry/Freshness</th>
+                    <th>Count</th>
+                    <th>Expected Life Span</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <!-- Results will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function submitForm(type) {
+            const imageInput = document.getElementById('imageInput');
+            if (!imageInput.files || !imageInput.files[0]) {
+                alert('Please select an image first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+            formData.append('product_type', type);
+
+            fetch('/analyze', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('resultsBody');
+                const row = tbody.insertRow(-1);
+                
+                row.insertCell(0).textContent = data.serial_number;
+                row.insertCell(1).textContent = data.timestamp;
+                row.insertCell(2).textContent = data.brand || data.produce;
+                row.insertCell(3).textContent = data.expiry_date || data.freshness;
+                row.insertCell(4).textContent = data.count;
+                row.insertCell(5).textContent = data.expected_life_span_days;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error processing image');
+            });
+        }
+    </script>
+</body>
+</html> 
