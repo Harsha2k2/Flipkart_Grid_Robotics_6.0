@@ -1,5 +1,5 @@
-flask
-python-dotenv
-Pillow
-google-generativeai
-pytz 
+flask==3.0.0
+pillow==10.1.0
+python-dotenv==1.0.0
+google-generativeai==0.3.1
+pytz==2023.3.post1

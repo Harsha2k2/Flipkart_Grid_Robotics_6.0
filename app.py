@@ -5,22 +5,23 @@ import os
 from PIL import Image
 import io
 import google.generativeai as genai
-import base64
 from dotenv import load_dotenv
 import calendar
 
-load_dotenv()  # Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
-# Create a class to manage the counter
-class Counter:
+# Create a class to manage the counter and history
+class AnalysisManager:
     def __init__(self):
         self.reset()
     
     def reset(self):
         self.branded_counter = 0
         self.fresh_counter = 0
+        self.branded_history = []
+        self.fresh_history = []
     
     def get_next(self, type):
         if type == 'branded':
@@ -29,20 +30,38 @@ class Counter:
         else:
             self.fresh_counter += 1
             return self.fresh_counter
+    
+    def add_to_history(self, type, data):
+        if type == 'branded':
+            self.branded_history.append(data)
+        else:
+            self.fresh_history.append(data)
+    
+    def get_history(self, type):
+        return self.branded_history if type == 'branded' else self.fresh_history
 
-# Initialize counter
-counter = Counter()
+# Initialize manager
+manager = AnalysisManager()
 
-# Add a route to reset counters
 @app.route('/reset/<type>')
 def reset_counter(type):
-    if type == 'all':
-        counter.reset()
-    elif type == 'branded':
-        counter.branded_counter = 0
-    elif type == 'fresh':
-        counter.fresh_counter = 0
-    return redirect(f'/analyze/{type if type != "all" else "branded"}')
+    try:
+        if type == 'all':
+            manager.reset()
+        elif type == 'branded':
+            manager.branded_counter = 0
+            manager.branded_history = []
+        elif type == 'fresh':
+            manager.fresh_counter = 0
+            manager.fresh_history = []
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Error resetting: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/history/<type>')
+def get_history(type):
+    return jsonify(manager.get_history(type))
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -416,12 +435,7 @@ def analyze():
             return jsonify({'error': 'No image uploaded'}), 400
         
         image_file = request.files['image']
-        if image_file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-        
         product_type = request.form.get('product_type')
-        if not product_type:
-            return jsonify({'error': 'Product type not specified'}), 400
         
         # Process the image based on the selected product type
         if product_type == 'branded':
@@ -429,33 +443,22 @@ def analyze():
         else:
             result = process_fresh_produce(image_file, 1)
         
-        # Get the next counter value based on type
-        serial_number = counter.get_next(product_type)
+        # Get the next counter value and create response
+        serial_number = manager.get_next(product_type)
+        response = {
+            'serial_number': serial_number,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'brand': result.get('brand', 'Not detected') if product_type == 'branded' else result.get('produce', 'Unknown produce'),
+            'expiry_date': result.get('expiry_date', 'Not available') if product_type == 'branded' else result.get('freshness', 'Unknown'),
+            'count': result.get('count', 1),
+            'expected_life_span_days': result.get('expected_life_span_days', 0)
+        }
         
-        # Format the response based on type
-        if result.get('type') == 'fresh':
-            response = {
-                'serial_number': serial_number,  # Use the new counter
-                'timestamp': result['timestamp'],
-                'brand': result.get('produce', 'Unknown produce'),
-                'expiry_date': result.get('freshness', 'Unknown'),
-                'count': result['count'],
-                'expected_life_span_days': result.get('expected_life_span_days', 0)
-            }
-        else:
-            response = {
-                'serial_number': serial_number,  # Use the new counter
-                'timestamp': result['timestamp'],
-                'brand': result.get('brand', 'Not detected'),
-                'expiry_date': result.get('expiry_date', 'Not available'),
-                'count': result['count'],
-                'expected_life_span_days': result.get('expected_life_span_days', 0)
-            }
+        # Add to history
+        manager.add_to_history(product_type, response)
         
         return jsonify(response)
         
-    except ValueError as ve:
-        return jsonify({'error': str(ve)}), 400
     except Exception as e:
         return jsonify({'error': f"Processing error: {str(e)}"}), 500
 

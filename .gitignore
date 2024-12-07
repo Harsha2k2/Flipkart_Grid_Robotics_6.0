@@ -34,5 +34,4 @@ node_modules/
 *.log
 
 # Local development
-instance/
 .webassets-cache

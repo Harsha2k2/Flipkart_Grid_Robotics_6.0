@@ -83,23 +83,108 @@
         .export-button:hover {
             background-color: #45a049;
         }
+        .tab-buttons {
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .tab-button.active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .camera-container {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        
+        #video {
+            width: 100%;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        
+        #canvas {
+            width: 100%;
+            border-radius: 8px;
+        }
+        
+        .camera-buttons {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .camera-button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .camera-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <a href="/" class="back-button">← Back to Home</a>
-        <a href="/reset/{{ type }}" class="clear-button">Reset Counter</a>
+        <button class="clear-button">Reset Counter</button>
         <button onclick="exportToCSV()" class="export-button">Export to CSV</button>
         
         <div class="upload-form">
-            <h2>Upload {{ type.title() }} Product Image</h2>
-            <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" name="image" accept="image/*" required>
-                <input type="hidden" name="product_type" value="{{ type }}">
-                <button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Analyze Image
-                </button>
-            </form>
+            <h2>{{ type.title() }} Product Analysis</h2>
+            
+            <!-- Tab buttons -->
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="switchTab('upload')">Upload Image</button>
+                <button class="tab-button" onclick="switchTab('camera')">Use Camera</button>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="uploadTab" class="tab-content active">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" name="image" accept="image/*" required>
+                    <input type="hidden" name="product_type" value="{{ type }}">
+                    <button type="submit" class="submit-button">Analyze Image</button>
+                </form>
+            </div>
+
+            <!-- Camera Tab -->
+            <div id="cameraTab" class="tab-content">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="camera-buttons">
+                        <button id="startCamera" class="camera-button">Start Camera</button>
+                        <button id="captureImage" class="camera-button" disabled>Take Photo</button>
+                        <button id="retakePhoto" class="camera-button" style="display: none;">Retake</button>
+                        <button id="analyzePhoto" class="camera-button" style="display: none;">Analyze Photo</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="loading" class="loading">
@@ -207,6 +292,160 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            }
+        }
+
+        // Add this function to clear the table
+        function clearTable() {
+            const tbody = document.getElementById('resultsBody');
+            while (tbody.firstChild) {
+                tbody.removeChild(tbody.firstChild);
+            }
+        }
+
+        // Update the clear button to use fetch instead of direct link
+        document.querySelector('.clear-button').onclick = async (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to reset? This will clear all results.')) {
+                try {
+                    const type = '{{ type }}';
+                    const response = await fetch(`/reset/${type}`, {
+                        method: 'GET',
+                        headers: {
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Reset failed');
+                    }
+                    
+                    clearTable();
+                    window.location.reload(); // Force a page reload
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to reset counter');
+                }
+            }
+        };
+
+        let stream = null;
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startButton = document.getElementById('startCamera');
+        const captureButton = document.getElementById('captureImage');
+        const retakeButton = document.getElementById('retakePhoto');
+        const analyzeButton = document.getElementById('analyzePhoto');
+
+        function switchTab(tab) {
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Add active class to selected tab
+            document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}Tab`).classList.add('active');
+            
+            // Stop camera if switching away from camera tab
+            if (tab !== 'camera' && stream) {
+                stopCamera();
+            }
+        }
+
+        startButton.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment'  // Use back camera on mobile
+                    } 
+                });
+                video.srcObject = stream;
+                startButton.style.display = 'none';
+                captureButton.disabled = false;
+                retakeButton.style.display = 'none';
+                analyzeButton.style.display = 'none';
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                alert('Could not access camera. Please ensure camera permissions are granted.');
+            }
+        });
+
+        captureButton.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            // Show captured image
+            video.style.display = 'none';
+            canvas.style.display = 'block';
+            
+            // Update buttons
+            captureButton.style.display = 'none';
+            retakeButton.style.display = 'inline-block';
+            analyzeButton.style.display = 'inline-block';
+        });
+
+        retakeButton.addEventListener('click', () => {
+            // Show video stream again
+            video.style.display = 'block';
+            canvas.style.display = 'none';
+            
+            // Update buttons
+            captureButton.style.display = 'inline-block';
+            retakeButton.style.display = 'none';
+            analyzeButton.style.display = 'none';
+        });
+
+        analyzeButton.addEventListener('click', async () => {
+            // Convert canvas to blob
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('image', blob, 'camera-capture.jpg');
+                formData.append('product_type', '{{ type }}');
+                
+                // Show loading indicator
+                document.getElementById('loading').style.display = 'block';
+                
+                try {
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    displayResults(data);
+                    
+                    // Reset camera view
+                    stopCamera();
+                    switchTab('upload');
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error processing image: ' + error.message);
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }, 'image/jpeg', 0.8);
+        });
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                video.style.display = 'block';
+                canvas.style.display = 'none';
+                startButton.style.display = 'inline-block';
+                captureButton.disabled = true;
+                retakeButton.style.display = 'none';
+                analyzeButton.style.display = 'none';
             }
         }
     </script>
