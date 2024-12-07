@@ -7,6 +7,7 @@ __pycache__/
 env/
 venv/
 .env
+list/
 
 # Model files
 *.weights
@@ -26,7 +27,12 @@ models/
 # Build
 dist/
 build/
+*.egg-info/
 node_modules/
 
 # Logs
 *.log
+
+# Local development
+instance/
+.webassets-cache
