@@ -3,130 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analysis Page</title>
+    <title>{{ type.title() }} Product Analysis</title>
     <style>
+        body {
+            background-color: #f5f4ef;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
         .container {
             max-width: 800px;
-            margin: 0 auto;
+            margin: 40px auto;
             padding: 20px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        .back-button {
-            padding: 10px 20px;
-            background-color: #666;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .file-input {
-            margin: 20px 0;
-        }
-        .analyze-button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
         }
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            padding: 12px;
             text-align: left;
+            border-bottom: 1px solid #ddd;
         }
         th {
-            background-color: #f2f2f2;
-        }
-        .reset-button {
-            padding: 10px 20px;
-            background-color: #ff4444;
+            background-color: #4CAF50;
             color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 10px;
         }
-        .header div {
-            display: flex;
-            gap: 10px;
+        .upload-form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .back-button:hover {
+            background-color: #45a049;
+        }
+        .clear-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            border: none;
+        }
+        .clear-button:hover {
+            background-color: #da190b;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>{{ type.title() }} Product Analysis</h1>
-            <div>
-                <button class="reset-button" onclick="window.location.href='/reset/{{ type }}'">Reset Counter</button>
-                <button class="back-button" onclick="window.location.href='/'">Back to Home</button>
-            </div>
+        <a href="/" class="back-button">← Back to Home</a>
+        <a href="/reset/{{ type }}" class="clear-button">Reset Counter</a>
+        
+        <div class="upload-form">
+            <h2>Upload {{ type.title() }} Product Image</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/*" required>
+                <input type="hidden" name="product_type" value="{{ type }}">
+                <button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Analyze Image
+                </button>
+            </form>
         </div>
 
-        <div class="file-input">
-            <input type="file" id="imageInput" accept="image/*">
-            <button class="analyze-button" onclick="submitForm('{{ type }}')">Analyze Image</button>
+        <div id="loading" class="loading">
+            Analyzing image... Please wait...
         </div>
 
         <table>
             <thead>
                 <tr>
-                    <th>Serial No.</th>
+                    <th>S.No</th>
                     <th>Timestamp</th>
-                    <th>Brand/Produce</th>
-                    <th>Expiry/Freshness</th>
+                    <th>{% if type == 'branded' %}Brand{% else %}Produce{% endif %}</th>
+                    <th>{% if type == 'branded' %}Expiry Date{% else %}Freshness{% endif %}</th>
                     <th>Count</th>
-                    <th>Expected Life Span</th>
+                    <th>Expected Life (Days)</th>
                 </tr>
             </thead>
             <tbody id="resultsBody">
-                <!-- Results will be populated here -->
             </tbody>
         </table>
     </div>
 
     <script>
-        function submitForm(type) {
-            const imageInput = document.getElementById('imageInput');
-            if (!imageInput.files || !imageInput.files[0]) {
-                alert('Please select an image first');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('image', imageInput.files[0]);
-            formData.append('product_type', type);
-
-            fetch('/analyze', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                const tbody = document.getElementById('resultsBody');
-                const row = tbody.insertRow(-1);
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            // Show loading indicator
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
                 
-                row.insertCell(0).textContent = data.serial_number;
-                row.insertCell(1).textContent = data.timestamp;
-                row.insertCell(2).textContent = data.brand || data.produce;
-                row.insertCell(3).textContent = data.expiry_date || data.freshness;
-                row.insertCell(4).textContent = data.count;
-                row.insertCell(5).textContent = data.expected_life_span_days;
-            })
-            .catch(error => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
                 console.error('Error:', error);
-                alert('Error processing image');
-            });
+                alert('Error processing image: ' + error.message);
+            } finally {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+            }
+        };
+
+        function displayResults(data) {
+            const tbody = document.getElementById('resultsBody');
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${data.serial_number}</td>
+                <td>${data.timestamp}</td>
+                <td>${data.brand || 'N/A'}</td>
+                <td>${data.expiry_date || 'N/A'}</td>
+                <td>${data.count || 'N/A'}</td>
+                <td>${data.expected_life_span_days || 'N/A'}</td>
+            `;
+            
+            tbody.appendChild(row);
         }
     </script>
 </body>
