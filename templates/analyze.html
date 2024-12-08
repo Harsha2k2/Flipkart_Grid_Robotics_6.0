@@ -38,6 +38,8 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             margin-bottom: 20px;
+            position: relative;
+            padding-top: 10px;
         }
         .back-button {
             display: inline-block;
@@ -146,6 +148,40 @@
             background-color: #cccccc;
             cursor: not-allowed;
         }
+        
+        .session-note {
+            position: absolute;
+            top: 30px;
+            right: 150px;
+            background: #f8fafc;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 1000;
+        }
+
+        .session-note i {
+            color: #3b82f6;
+        }
+
+        .download-button {
+            padding: 8px 16px;
+            background: #0f172a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .download-button:hover {
+            background: #1e293b;
+        }
     </style>
 </head>
 <body>
@@ -155,7 +191,16 @@
         <button onclick="exportToCSV()" class="export-button">Export to CSV</button>
         
         <div class="upload-form">
-            <h2>{{ type.title() }} Product Analysis</h2>
+            {% if type in ['branded', 'fresh'] %}
+            <div class="session-note">
+                <i class="fas fa-info-circle"></i>
+                Counter resets to 1 in new session
+            </div>
+            {% endif %}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>{{ type|title }} Products Analysis</h2>
+                <button onclick="exportToCSV()" class="download-button">Download Data</button>
+            </div>
             
             <!-- Tab buttons -->
             <div class="tab-buttons">
@@ -191,20 +236,58 @@
             Analyzing image... Please wait...
         </div>
 
-        <table>
+        {% if type == 'branded' %}
+        <table id="resultsTable">
             <thead>
                 <tr>
                     <th>S.No</th>
                     <th>Timestamp</th>
-                    <th>{% if type == 'branded' %}Brand{% else %}Produce{% endif %}</th>
-                    <th>{% if type == 'branded' %}Expiry Date{% else %}Freshness{% endif %}</th>
+                    <th>Brand</th>
+                    <th>Expiry Date</th>
                     <th>Count</th>
+                    <th>Expired</th>
                     <th>Expected Life (Days)</th>
                 </tr>
             </thead>
             <tbody id="resultsBody">
             </tbody>
         </table>
+        {% elif type == 'fresh' %}
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Timestamp</th>
+                    <th>Product</th>
+                    <th>Count</th>
+                    <th>Freshness</th>
+                    <th>Expected Life (Days)</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+            </tbody>
+        </table>
+        {% elif type == 'all' %}
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Timestamp</th>
+                    <th>Product Name</th>
+                    <th>Count</th>
+                    <!-- Branded Product Fields -->
+                    <th>Expiry Date</th>
+                    <th>Expired</th>
+                    <!-- Fresh Product Fields -->
+                    <th>Freshness Score</th>
+                    <th>Visual Issues</th>
+                    <th>Expected Life (Days)</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+            </tbody>
+        </table>
+        {% endif %}
     </div>
 
     <script>
@@ -226,7 +309,7 @@
                 }
                 
                 const data = await response.json();
-                displayResults(data);
+                updateResults(data);
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error processing image: ' + error.message);
@@ -236,62 +319,101 @@
             }
         };
 
-        function displayResults(data) {
+        function updateResults(data) {
             const tbody = document.getElementById('resultsBody');
             const row = document.createElement('tr');
             
-            row.innerHTML = `
-                <td>${data.serial_number}</td>
-                <td>${data.timestamp}</td>
-                <td>${data.brand || 'N/A'}</td>
-                <td>${data.expiry_date || 'N/A'}</td>
-                <td>${data.count || 'N/A'}</td>
-                <td>${data.expected_life_span_days || 'N/A'}</td>
-            `;
+            if ('{{ type }}' === 'branded') {
+                const isExpired = data.expiry_date === 'Not visible' ? 'N/A' : 
+                                (data.expected_life_span_days <= 0 ? 'Yes' : 'No');
+                const expectedLife = data.expiry_date === 'Not visible' ? 'N/A' : 
+                                   data.expected_life_span_days;
+                
+                row.innerHTML = `
+                    <td>${data.serial_number}</td>
+                    <td>${data.timestamp}</td>
+                    <td>${data.name}</td>
+                    <td>${data.expiry_date}</td>
+                    <td>${data.count}</td>
+                    <td>${isExpired}</td>
+                    <td>${expectedLife}</td>
+                `;
+            } else if ('{{ type }}' === 'fresh') {
+                row.innerHTML = `
+                    <td>${data.serial_number}</td>
+                    <td>${data.timestamp}</td>
+                    <td>${data.name}</td>
+                    <td>${data.count}</td>
+                    <td>${data.freshness}</td>
+                    <td>${data.expected_life_span_days}</td>
+                `;
+            }
             
-            tbody.appendChild(row);
+            tbody.insertBefore(row, tbody.firstChild);
+            document.getElementById('resultsTable').style.display = 'table';
         }
 
         function exportToCSV() {
             const table = document.querySelector('table');
-            const rows = table.querySelectorAll('tr');
-            let csv = [];
+            if (!table) {
+                console.error('Table not found');
+                alert('No data available to export');
+                return;
+            }
+
+            let csvContent = [];
             
             // Get headers
-            const headers = [];
-            rows[0].querySelectorAll('th').forEach(cell => {
-                headers.push(cell.textContent.trim());
-            });
-            csv.push(headers.join(','));
-            
-            // Get data rows
-            for (let i = 1; i < rows.length; i++) {
-                const row = [];
-                rows[i].querySelectorAll('td').forEach(cell => {
-                    // Escape commas and quotes in the cell content
-                    let content = cell.textContent.trim();
-                    if (content.includes(',') || content.includes('"')) {
-                        content = `"${content.replace(/"/g, '""')}"`;
-                    }
-                    row.push(content);
-                });
-                csv.push(row.join(','));
+            const headerRow = table.querySelector('thead tr');
+            if (headerRow) {
+                const headers = Array.from(headerRow.querySelectorAll('th')).map(th => th.textContent.trim());
+                csvContent.push(headers.join(','));
             }
             
-            // Create and trigger download
-            const csvContent = csv.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
+            // Get data rows
+            const bodyRows = table.querySelectorAll('tbody tr');
+            bodyRows.forEach(row => {
+                const rowData = [];
+                row.querySelectorAll('td').forEach(cell => {
+                    let content = cell.textContent.trim();
+                    
+                    // Escape special characters if needed
+                    if (content.includes(',') || content.includes('"') || content.includes('\n')) {
+                        content = `"${content.replace(/"/g, '""')}"`;
+                    }
+                    rowData.push(content);
+                });
+                csvContent.push(rowData.join(','));
+            });
+
+            if (csvContent.length <= 1) {
+                alert('No data available to export');
+                return;
+            }
+
+            // Create the CSV file
+            const csv = csvContent.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const productType = '{{ type }}'; // Get the product type from Jinja template
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            
-            if (navigator.msSaveBlob) { // IE 10+
-                navigator.msSaveBlob(blob, `product_analysis_${timestamp}.csv`);
+            const filename = `${productType}_products_${timestamp}.csv`;
+
+            // Create download link
+            const link = document.createElement('a');
+            if (window.navigator.msSaveOrOpenBlob) {
+                // For IE
+                window.navigator.msSaveOrOpenBlob(blob, filename);
             } else {
-                link.href = URL.createObjectURL(blob);
-                link.setAttribute('download', `product_analysis_${timestamp}.csv`);
+                // For modern browsers
+                const url = window.URL.createObjectURL(blob);
+                link.href = url;
+                link.download = filename;
                 document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                }, 0);
             }
         }
 
@@ -401,7 +523,6 @@
         });
 
         analyzeButton.addEventListener('click', async () => {
-            // Convert canvas to blob
             canvas.toBlob(async (blob) => {
                 const formData = new FormData();
                 formData.append('image', blob, 'camera-capture.jpg');
@@ -421,7 +542,7 @@
                     }
                     
                     const data = await response.json();
-                    displayResults(data);
+                    updateResults(data);
                     
                     // Reset camera view
                     stopCamera();
@@ -448,6 +569,26 @@
                 analyzeButton.style.display = 'none';
             }
         }
+
+        // Add function to load history when page loads
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history/{{ type }}');
+                const data = await response.json();
+                
+                // Clear existing rows
+                const tbody = document.getElementById('resultsBody');
+                tbody.innerHTML = '';
+                
+                // Add each item to the table
+                data.forEach(item => updateResults(item));
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        // Load history when page loads
+        document.addEventListener('DOMContentLoaded', loadHistory);
     </script>
 </body>
 </html> 

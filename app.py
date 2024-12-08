@@ -7,10 +7,42 @@ import io
 import google.generativeai as genai
 from dotenv import load_dotenv
 import calendar
+from flask_sqlalchemy import SQLAlchemy
 
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///product_analysis.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# Define database models
+class Analysis(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    serial_number = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    product_type = db.Column(db.String(20), nullable=False)  # 'branded', 'fresh', or 'all'
+    name = db.Column(db.String(100))  # brand name or produce type
+    expiry_date = db.Column(db.String(20))
+    count = db.Column(db.Integer)
+    expected_life_span_days = db.Column(db.Integer)
+    freshness = db.Column(db.String(50))
+    
+    def to_dict(self):
+        return {
+            'serial_number': self.serial_number,
+            'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'product_type': self.product_type,
+            'name': self.name,
+            'expiry_date': self.expiry_date,
+            'count': self.count,
+            'expected_life_span_days': self.expected_life_span_days,
+            'freshness': self.freshness
+        }
+
+# Create database tables
+with app.app_context():
+    db.create_all()
 
 # Create a class to manage the counter and history
 class AnalysisManager:
@@ -20,25 +52,36 @@ class AnalysisManager:
     def reset(self):
         self.branded_counter = 0
         self.fresh_counter = 0
+        self.all_counter = 0  # New counter for all products
         self.branded_history = []
         self.fresh_history = []
+        self.all_history = []  # New history for all products
     
     def get_next(self, type):
         if type == 'branded':
             self.branded_counter += 1
             return self.branded_counter
-        else:
+        elif type == 'fresh':
             self.fresh_counter += 1
             return self.fresh_counter
+        else:  # 'all'
+            self.all_counter += 1
+            return self.all_counter
     
     def add_to_history(self, type, data):
         if type == 'branded':
             self.branded_history.append(data)
-        else:
+        elif type == 'fresh':
             self.fresh_history.append(data)
+        else:  # 'all'
+            self.all_history.append(data)
     
     def get_history(self, type):
-        return self.branded_history if type == 'branded' else self.fresh_history
+        if type == 'branded':
+            return self.branded_history
+        elif type == 'fresh':
+            return self.fresh_history
+        return self.all_history  # 'all'
 
 # Initialize manager
 manager = AnalysisManager()
@@ -48,12 +91,16 @@ def reset_counter(type):
     try:
         if type == 'all':
             manager.reset()
+            db.session.query(Analysis).delete()
         elif type == 'branded':
             manager.branded_counter = 0
             manager.branded_history = []
+            db.session.query(Analysis).filter_by(product_type='branded').delete()
         elif type == 'fresh':
             manager.fresh_counter = 0
             manager.fresh_history = []
+            db.session.query(Analysis).filter_by(product_type='fresh').delete()
+        db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
         print(f"Error resetting: {e}")
@@ -61,7 +108,14 @@ def reset_counter(type):
 
 @app.route('/history/<type>')
 def get_history(type):
-    return jsonify(manager.get_history(type))
+    try:
+        if type == 'all':
+            analyses = Analysis.query.order_by(Analysis.timestamp.desc()).all()
+        else:
+            analyses = Analysis.query.filter_by(product_type=type).order_by(Analysis.timestamp.desc()).all()
+        return jsonify([analysis.to_dict() for analysis in analyses])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -130,10 +184,17 @@ def analyze_image_with_llm(image_file, system_prompt):
 
 # Helper functions to extract information from Gemini's response
 def extract_brand(response_text):
-    # Add logic to extract brand from response
-    # This is a simple example - you might need more sophisticated parsing
-    if "brand:" in response_text:
-        return response_text.split("brand:")[1].split("\n")[0].strip()
+    """
+    Enhanced brand extraction with better validation
+    """
+    if "brand:" in response_text.lower():
+        try:
+            brand = response_text.lower().split("brand:")[1].split("\n")[0].strip()
+            # Remove common non-brand text
+            brand = brand.replace('not detected', '').replace('unknown', '').strip()
+            return brand.title() if brand else "Not detected"
+        except:
+            pass
     return "Not detected"
 
 def extract_date(response_text):
@@ -218,9 +279,22 @@ def extract_shelf_life(response_text):
     return 0
 
 def extract_count(response_text):
-    if "count:" in response_text:
+    """
+    Enhanced count extraction that ensures proper counting with validation
+    """
+    if "count:" in response_text.lower():
         try:
-            return int(response_text.split("count:")[1].split("\n")[0].strip())
+            count_text = response_text.lower().split("count:")[1].split("\n")[0].strip()
+            # Extract only numbers from the text
+            count = int(''.join(filter(str.isdigit, count_text)))
+            
+            # Add reasonable limits
+            if count < 1:
+                return 1
+            elif count > 20:  # Adjust this maximum limit based on your needs
+                return 1
+                
+            return count
         except:
             pass
     return 1
@@ -259,9 +333,14 @@ def process_image(image_file):
     If you see any packaging, branding, or processed food items, classify it as 'packaged'.
     If you see any fruits, vegetables, or fresh produce, classify it as 'fresh'.
     
+    IMPORTANT: Count ALL items visible in the image, even if:
+    - They are the same type (e.g., 5 bananas should be counted as 5)
+    - They are partially visible
+    - They are in different states of freshness
+    
     Respond in EXACTLY this format:
     Type: [packaged/fresh]
-    Count: [number of items]
+    Count: [exact number of items visible]
     """
     
     initial_analysis = analyze_image_with_llm(image_file, initial_prompt)
@@ -274,15 +353,44 @@ def process_image(image_file):
         # Default to fresh produce if not clearly packaged
         return process_fresh_produce(image_file, initial_analysis.get('count', 1))
 
+def extract_mrp(response_text):
+    """
+    Extract MRP from the response text
+    """
+    if "mrp:" in response_text.lower():
+        try:
+            mrp_text = response_text.lower().split("mrp:")[1].split("\n")[0].strip()
+            # Remove currency symbols and 'rs' text if present
+            mrp_text = mrp_text.replace('₹', '').replace('rs', '').replace('rs.', '').strip()
+            # Extract numbers including decimals
+            mrp = float(''.join(c for c in mrp_text if c.isdigit() or c == '.'))
+            return f"₹{mrp:.2f}"
+        except:
+            pass
+    return "Not visible"
+
 def process_packaged_product(image_file, item_count):
     """
     Process packaged products to extract brand and expiry
     """
     prompt = """
-    Analyze this packaged product and provide information in the following format:
-    Brand: [brand name]
+    Analyze this packaged product and provide information in the following format.
+    
+    COUNTING RULES:
+    - Count each DISTINCT physical package/item visible in the image
+    - Do NOT count the same item multiple times
+    - Do NOT count logos or brand images as separate items
+    - Only count actual physical products
+    
+    IMPORTANT: Look carefully for:
+    - Brand name on the package
+    - MRP (Maximum Retail Price) usually marked as MRP ₹XX or Rs.XX
+    
+    Provide information in EXACTLY this format:
+    Brand: [exact brand name visible on the package]
     Expiry Date: [YYYY-MM-DD]
-    Count: [number of items]
+    MRP: [price in ₹ or Rs. if visible]
+    Count: [number of distinct physical packages/items]
     
     Be precise and provide only the requested information in the specified format.
     """
@@ -292,13 +400,19 @@ def process_packaged_product(image_file, item_count):
     ist = pytz.timezone('Asia/Kolkata')
     current_time = datetime.now(ist)
     
+    # Add validation for count
+    count = details.get('count', 1)
+    if count > 20:
+        count = 1
+    
     return {
         'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
         'brand': details.get('brand', 'Not detected'),
         'expiry_date': details.get('expiry_date', 'Not visible'),
-        'count': item_count,
+        'mrp': extract_mrp(details.get('response_text', '')),
+        'count': count,
         'expected_life_span_days': calculate_shelf_life(details.get('expiry_date')),
-        'type': 'packaged'
+        'type': 'branded'
     }
 
 def process_fresh_produce(image_file, item_count):
@@ -311,8 +425,14 @@ def process_fresh_produce(image_file, item_count):
     - Texture (looking for wrinkles, bruises, or soft spots)
     - Overall appearance (mold, decay, or other visible issues)
     
+    IMPORTANT: Count ALL items visible in the image, even if:
+    - They are the same type (e.g., 5 bananas should be counted as 5)
+    - They are partially visible
+    - They are in different states of freshness
+    
     Provide information in EXACTLY this format:
     Produce Type: [specific name of fruit/vegetable]
+    Count: [exact number of items visible]
     Freshness Score: [score 1-10, where:
         1-2: Severely degraded/rotten
         3-4: Poor quality with visible decay
@@ -321,18 +441,6 @@ def process_fresh_produce(image_file, item_count):
         9-10: Excellent/Peak freshness]
     Visual Issues: [list any visible problems]
     Shelf Life: [estimated remaining days]
-    
-    Example for bad banana:
-    Produce Type: Banana
-    Freshness Score: 2
-    Visual Issues: Black peel, overripe, soft texture
-    Shelf Life: 0
-
-    Example for fresh apple:
-    Produce Type: Apple
-    Freshness Score: 9
-    Visual Issues: None visible
-    Shelf Life: 7
     """
     
     details = analyze_image_with_llm(image_file, prompt)
@@ -364,7 +472,7 @@ def process_fresh_produce(image_file, item_count):
         'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
         'produce': details.get('produce_type', 'Unknown produce'),
         'freshness': f"{freshness_score}/10 ({freshness_status})",
-        'count': item_count,
+        'count': details.get('count', 1),
         'expected_life_span_days': shelf_life,
         'type': 'fresh',
         'visual_issues': details.get('visual_issues', 'None reported')
@@ -424,7 +532,7 @@ def index():
 
 @app.route('/analyze/<type>')
 def analyze_page(type):
-    if type not in ['branded', 'fresh']:
+    if type not in ['branded', 'fresh', 'all']:
         return redirect('/')
     return render_template('analyze.html', type=type)
 
@@ -437,22 +545,46 @@ def analyze():
         image_file = request.files['image']
         product_type = request.form.get('product_type')
         
-        # Process the image based on the selected product type
-        if product_type == 'branded':
-            result = process_packaged_product(image_file, 1)
+        # Process the image
+        if product_type == 'all':
+            result = process_image(image_file)
+            detected_type = result.get('type', 'unknown')
+            if detected_type == 'packaged':  # Convert 'packaged' to 'branded'
+                detected_type = 'branded'
         else:
-            result = process_fresh_produce(image_file, 1)
+            if product_type == 'branded':
+                result = process_packaged_product(image_file, 1)
+            else:
+                result = process_fresh_produce(image_file, 1)
+            detected_type = product_type
         
-        # Get the next counter value and create response
+        # Get the next counter value
         serial_number = manager.get_next(product_type)
+        
+        # Create unified response format
         response = {
             'serial_number': serial_number,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'brand': result.get('brand', 'Not detected') if product_type == 'branded' else result.get('produce', 'Unknown produce'),
-            'expiry_date': result.get('expiry_date', 'Not available') if product_type == 'branded' else result.get('freshness', 'Unknown'),
+            'product_type': detected_type,
+            'name': result.get('brand' if detected_type == 'branded' else 'produce', 'Unknown'),
+            'expiry_date': result.get('expiry_date', 'N/A') if detected_type == 'branded' else 'N/A',
             'count': result.get('count', 1),
-            'expected_life_span_days': result.get('expected_life_span_days', 0)
+            'expected_life_span_days': result.get('expected_life_span_days', 0),
+            'freshness': result.get('freshness', 'N/A') if detected_type == 'fresh' else 'N/A'
         }
+        
+        # Save to database
+        analysis = Analysis(
+            serial_number=serial_number,
+            product_type=detected_type,
+            name=response['name'],
+            expiry_date=response['expiry_date'],
+            count=response['count'],
+            expected_life_span_days=response['expected_life_span_days'],
+            freshness=response['freshness']
+        )
+        db.session.add(analysis)
+        db.session.commit()
         
         # Add to history
         manager.add_to_history(product_type, response)
@@ -462,5 +594,39 @@ def analyze():
     except Exception as e:
         return jsonify({'error': f"Processing error: {str(e)}"}), 500
 
+@app.route('/dashboard')
+def dashboard():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 10
+        
+        # Get all scans ordered by timestamp
+        all_scans = Analysis.query.order_by(Analysis.timestamp.desc()).all()
+        
+        # Calculate pagination
+        total_pages = len(all_scans) // per_page + (1 if len(all_scans) % per_page else 0)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated_scans = all_scans[start:end]
+        
+        # Calculate statistics
+        stats = {
+            'total_products': len(all_scans),
+            'branded_products': len([s for s in all_scans if s.product_type == 'branded']),
+            'fresh_products': len([s for s in all_scans if s.product_type == 'fresh']),
+            'total_items': sum(scan.count for scan in all_scans),
+            'todays_branded_scans': len([s for s in all_scans if s.product_type == 'branded' and s.timestamp.date() == datetime.now().date()]),
+            'todays_fresh_scans': len([s for s in all_scans if s.product_type == 'fresh' and s.timestamp.date() == datetime.now().date()])
+        }
+        
+        return render_template('dashboard.html', 
+                             stats=stats,
+                             recent_scans=paginated_scans,
+                             current_page=page,
+                             total_pages=total_pages)
+    except Exception as e:
+        return f"Error loading dashboard: {str(e)}", 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080) 
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=8080, debug=debug_mode) 
