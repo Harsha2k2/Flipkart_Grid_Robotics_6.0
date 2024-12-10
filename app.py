@@ -119,6 +119,7 @@ def get_history(type):
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+print(f"API Key: {GOOGLE_API_KEY[:5]}...") # Only print first 5 chars for security
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 

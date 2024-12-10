@@ -65,6 +65,7 @@
         }
 
         .card-icon {
+            
             position: absolute;
             top: 20px;
             right: 20px;
@@ -127,22 +128,50 @@
 
         .pagination {
             display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 6px;
+            margin-top: 15px;
+            padding: 15px 16px;
+            border-top: 1px solid #f1f5f9;
         }
 
         .pagination-button {
-            padding: 8px 16px;
-            border: 1px solid #ddd;
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: white;
             cursor: pointer;
+            text-decoration: none;
+            color: #1a202c;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            min-width: 55px;
+            text-align: center;
+            font-size: 13px;
         }
 
-        .pagination-button:disabled {
+        .pagination-button:hover:not([disabled]) {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .pagination-button[disabled] {
             opacity: 0.5;
+            pointer-events: none;
             cursor: not-allowed;
+            background-color: #f1f5f9;
+        }
+
+        .page-info {
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 0 4px;
+            min-width: 70px;
+            text-align: center;
         }
 
         .download-button {
@@ -265,6 +294,28 @@
             color: #0f172a;
             margin: 0;
         }
+
+        .page-info {
+            margin: 0 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .pagination-button[disabled] {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+        
+        .pagination-button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
     </style>
 </head>
 <body>
@@ -339,7 +390,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for scan in recent_scans[:10] %}
+                        {% for scan in recent_scans %}
                         <tr>
                             <td>{{ scan.serial_number }}</td>
                             <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
@@ -363,8 +414,9 @@
                     </tbody>
                 </table>
                 <div class="pagination">
-                    <button class="pagination-button" onclick="previousPage()" id="prevButton" disabled>Previous</button>
-                    <button class="pagination-button" onclick="nextPage()" id="nextButton" {% if recent_scans|length <= 10 %}disabled{% endif %}>Next</button>
+                    <a href="/dashboard?page={{ current_page - 1 }}" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>Previous</a>
+                    <span class="page-info">Page {{ current_page }} of {{ total_pages }}</span>
+                    <a href="/dashboard?page={{ current_page + 1 }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>Next</a>
                 </div>
             </div>
         </div>
@@ -581,19 +633,59 @@
             }
         }
 
-        let currentPage = 1;
-        
+        let currentPage = {{ current_page }};
+        const totalPages = {{ total_pages }};
+
         function previousPage() {
             if (currentPage > 1) {
-                currentPage--;
-                window.location.href = `/dashboard?page=${currentPage}`;
+                console.log('Navigating to previous page:', currentPage - 1);
+                window.location.href = `/dashboard?page=${currentPage - 1}`;
             }
         }
-        
+
         function nextPage() {
-            currentPage++;
-            window.location.href = `/dashboard?page=${currentPage}`;
+            console.log('Next page function called');
+            console.log('Current page:', currentPage);
+            console.log('Total pages:', totalPages);
+            if (currentPage < totalPages) {
+                console.log('Navigating to next page:', currentPage + 1);
+                window.location.href = `/dashboard?page=${currentPage + 1}`;
+            }
         }
+
+        // Enhanced error handling and event listeners for pagination
+        document.addEventListener('DOMContentLoaded', () => {
+            const nextBtn = document.getElementById('nextButton');
+            const prevBtn = document.getElementById('prevButton');
+            
+            if (nextBtn) {
+                nextBtn.onclick = (e) => {
+                    e.preventDefault();
+                    console.log('Next button clicked');
+                    if (!nextBtn.disabled) {
+                        nextPage();
+                    }
+                };
+            }
+            
+            if (prevBtn) {
+                prevBtn.onclick = (e) => {
+                    e.preventDefault();
+                    console.log('Previous button clicked');
+                    if (!prevBtn.disabled) {
+                        previousPage();
+                    }
+                };
+            }
+
+            // Log initial pagination state
+            console.log('Initial pagination state:', {
+                currentPage,
+                totalPages,
+                nextButtonDisabled: nextBtn?.disabled,
+                prevButtonDisabled: prevBtn?.disabled
+            });
+        });
     </script>
 </body>
 </html> 
