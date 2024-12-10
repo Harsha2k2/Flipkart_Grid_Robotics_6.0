@@ -472,9 +472,18 @@
             document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
             document.getElementById(`${tab}Tab`).classList.add('active');
             
-            // Stop camera if switching away from camera tab
-            if (tab !== 'camera' && stream) {
+            // Stop camera and reset UI if switching away from camera tab
+            if (tab !== 'camera') {
                 stopCamera();
+            } else {
+                // Reset camera UI when switching to camera tab
+                video.style.display = 'block';
+                canvas.style.display = 'none';
+                startButton.style.display = 'inline-block';
+                captureButton.style.display = 'none';
+                captureButton.disabled = true;
+                retakeButton.style.display = 'none';
+                analyzeButton.style.display = 'none';
             }
         }
 
@@ -487,9 +496,14 @@
                 });
                 video.srcObject = stream;
                 startButton.style.display = 'none';
+                captureButton.style.display = 'inline-block';
                 captureButton.disabled = false;
                 retakeButton.style.display = 'none';
                 analyzeButton.style.display = 'none';
+                
+                // Reset video display
+                video.style.display = 'block';
+                canvas.style.display = 'none';
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 alert('Could not access camera. Please ensure camera permissions are granted.');
@@ -544,8 +558,18 @@
                     const data = await response.json();
                     updateResults(data);
                     
-                    // Reset camera view
+                    // Reset camera view and buttons
                     stopCamera();
+                    // Reset video and canvas display
+                    video.style.display = 'block';
+                    canvas.style.display = 'none';
+                    // Reset button states
+                    startButton.style.display = 'inline-block';
+                    captureButton.style.display = 'none';
+                    captureButton.disabled = true;
+                    retakeButton.style.display = 'none';
+                    analyzeButton.style.display = 'none';
+                    
                     switchTab('upload');
                 } catch (error) {
                     console.error('Error:', error);
@@ -564,6 +588,7 @@
                 video.style.display = 'block';
                 canvas.style.display = 'none';
                 startButton.style.display = 'inline-block';
+                captureButton.style.display = 'inline-block';
                 captureButton.disabled = true;
                 retakeButton.style.display = 'none';
                 analyzeButton.style.display = 'none';
