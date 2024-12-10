@@ -317,6 +317,50 @@
             text-decoration: none;
             color: inherit;
         }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .sort-select {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+            color: #1a202c;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .sort-select:hover {
+            border-color: #cbd5e1;
+        }
+
+        .sort-button {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+            color: #1a202c;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .sort-button:hover {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .sort-button i {
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -377,6 +421,12 @@
             <div class="recent-scans">
                 <div class="table-header">
                     <h2>Recent Scans</h2>
+                    <div class="table-actions">
+                        <button onclick="toggleSort()" class="sort-button">
+                            <i class="fas fa-sort"></i>
+                            {{ 'Latest First' if sort_order == 'desc' else 'Oldest First' }}
+                        </button>
+                    </div>
                 </div>
                 <table>
                     <thead>
@@ -393,7 +443,7 @@
                     <tbody>
                         {% for scan in recent_scans %}
                         <tr>
-                            <td>{{ scan.serial_number }}</td>
+                            <td>{{ scan.sequential_id }}</td>
                             <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 <span class="type-badge type-{{ scan.product_type }}">
@@ -691,6 +741,15 @@
                 prevButtonDisabled: prevBtn?.disabled
             });
         });
+
+        function toggleSort() {
+            const currentUrl = new URL(window.location.href);
+            const currentSort = currentUrl.searchParams.get('sort') || 'desc';
+            const newSort = currentSort === 'desc' ? 'asc' : 'desc';
+            currentUrl.searchParams.set('sort', newSort);
+            currentUrl.searchParams.set('page', '1'); // Reset to first page when sorting
+            window.location.href = currentUrl.toString();
+        }
     </script>
 </body>
 </html> 

@@ -599,27 +599,35 @@ def analyze():
 def dashboard():
     try:
         page = request.args.get('page', 1, type=int)
+        sort_order = request.args.get('sort', 'desc')
         per_page = 10
         
-        # Get all scans ordered by timestamp
-        all_scans = Analysis.query.order_by(Analysis.timestamp.desc()).all()
+        # Get all scans ordered by timestamp ascending first to assign sequential IDs
+        all_scans = Analysis.query.order_by(Analysis.timestamp.asc()).all()
+        
+        # Assign sequential IDs starting from 1
+        for index, scan in enumerate(all_scans, 1):
+            scan.sequential_id = index
+        
+        # Now sort according to user preference
+        if sort_order == 'desc':
+            all_scans.reverse()
+            
         total_scans = len(all_scans)
         
-        # Calculate pagination
-        total_pages = (total_scans + per_page - 1) // per_page  # Ceiling division
+        # Rest of the pagination logic...
+        total_pages = (total_scans + per_page - 1) // per_page
         
-        # Validate page number
         if page < 1:
             page = 1
         elif page > total_pages and total_pages > 0:
             page = total_pages
             
-        # Calculate slice indices
         start = (page - 1) * per_page
-        end = min(start + per_page, total_scans)  # Ensure we don't go past the end
+        end = min(start + per_page, total_scans)
         paginated_scans = all_scans[start:end]
         
-        # Calculate statistics
+        # Calculate statistics...
         stats = {
             'total_products': total_scans,
             'branded_products': len([s for s in all_scans if s.product_type == 'branded']),
@@ -633,7 +641,8 @@ def dashboard():
                              stats=stats,
                              recent_scans=paginated_scans,
                              current_page=page,
-                             total_pages=max(1, total_pages))  # Ensure at least 1 page
+                             total_pages=max(1, total_pages),
+                             sort_order=sort_order)
     except Exception as e:
         return f"Error loading dashboard: {str(e)}", 500
 
