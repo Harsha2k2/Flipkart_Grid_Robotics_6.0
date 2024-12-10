@@ -603,16 +603,25 @@ def dashboard():
         
         # Get all scans ordered by timestamp
         all_scans = Analysis.query.order_by(Analysis.timestamp.desc()).all()
+        total_scans = len(all_scans)
         
         # Calculate pagination
-        total_pages = len(all_scans) // per_page + (1 if len(all_scans) % per_page else 0)
+        total_pages = (total_scans + per_page - 1) // per_page  # Ceiling division
+        
+        # Validate page number
+        if page < 1:
+            page = 1
+        elif page > total_pages and total_pages > 0:
+            page = total_pages
+            
+        # Calculate slice indices
         start = (page - 1) * per_page
-        end = start + per_page
+        end = min(start + per_page, total_scans)  # Ensure we don't go past the end
         paginated_scans = all_scans[start:end]
         
         # Calculate statistics
         stats = {
-            'total_products': len(all_scans),
+            'total_products': total_scans,
             'branded_products': len([s for s in all_scans if s.product_type == 'branded']),
             'fresh_products': len([s for s in all_scans if s.product_type == 'fresh']),
             'total_items': sum(scan.count for scan in all_scans),
@@ -624,7 +633,7 @@ def dashboard():
                              stats=stats,
                              recent_scans=paginated_scans,
                              current_page=page,
-                             total_pages=total_pages)
+                             total_pages=max(1, total_pages))  # Ensure at least 1 page
     except Exception as e:
         return f"Error loading dashboard: {str(e)}", 500
 

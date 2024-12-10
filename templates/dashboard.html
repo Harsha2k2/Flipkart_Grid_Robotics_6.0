@@ -134,6 +134,7 @@
             margin-top: 15px;
             padding: 15px 16px;
             border-top: 1px solid #f1f5f9;
+            {% if not recent_scans %}display: none;{% endif %}
         }
 
         .pagination-button {
@@ -414,9 +415,13 @@
                     </tbody>
                 </table>
                 <div class="pagination">
-                    <a href="/dashboard?page={{ current_page - 1 }}" class="pagination-button" {% if current_page == 1 %}disabled{% endif %}>Previous</a>
+                    <a href="/dashboard?page={{ current_page - 1 }}" 
+                       class="pagination-button" 
+                       {% if current_page == 1 or not recent_scans %}disabled{% endif %}>Previous</a>
                     <span class="page-info">Page {{ current_page }} of {{ total_pages }}</span>
-                    <a href="/dashboard?page={{ current_page + 1 }}" class="pagination-button" {% if current_page == total_pages %}disabled{% endif %}>Next</a>
+                    <a href="/dashboard?page={{ current_page + 1 }}" 
+                       class="pagination-button" 
+                       {% if current_page == total_pages or not recent_scans %}disabled{% endif %}>Next</a>
                 </div>
             </div>
         </div>
