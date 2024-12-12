@@ -125,6 +125,7 @@ def get_history(type):
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+print(f"API Key: {GOOGLE_API_KEY[:5]}...") # Only print first 5 chars for security
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -604,20 +605,37 @@ def analyze():
 def dashboard():
     try:
         page = request.args.get('page', 1, type=int)
+        sort_order = request.args.get('sort', 'desc')
         per_page = 10
         
-        # Get all scans ordered by timestamp
-        all_scans = Analysis.query.order_by(Analysis.timestamp.desc()).all()
+        # Get all scans ordered by timestamp ascending first to assign sequential IDs
+        all_scans = Analysis.query.order_by(Analysis.timestamp.asc()).all()
         
-        # Calculate pagination
-        total_pages = len(all_scans) // per_page + (1 if len(all_scans) % per_page else 0)
+        # Assign sequential IDs starting from 1
+        for index, scan in enumerate(all_scans, 1):
+            scan.sequential_id = index
+        
+        # Now sort according to user preference
+        if sort_order == 'desc':
+            all_scans.reverse()
+            
+        total_scans = len(all_scans)
+        
+        # Rest of the pagination logic...
+        total_pages = (total_scans + per_page - 1) // per_page
+        
+        if page < 1:
+            page = 1
+        elif page > total_pages and total_pages > 0:
+            page = total_pages
+            
         start = (page - 1) * per_page
-        end = start + per_page
+        end = min(start + per_page, total_scans)
         paginated_scans = all_scans[start:end]
         
-        # Calculate statistics
+        # Calculate statistics...
         stats = {
-            'total_products': len(all_scans),
+            'total_products': total_scans,
             'branded_products': len([s for s in all_scans if s.product_type == 'branded']),
             'fresh_products': len([s for s in all_scans if s.product_type == 'fresh']),
             'total_items': sum(scan.count for scan in all_scans),
@@ -629,7 +647,8 @@ def dashboard():
                              stats=stats,
                              recent_scans=paginated_scans,
                              current_page=page,
-                             total_pages=total_pages)
+                             total_pages=max(1, total_pages),
+                             sort_order=sort_order)
     except Exception as e:
         return f"Error loading dashboard: {str(e)}", 500
 

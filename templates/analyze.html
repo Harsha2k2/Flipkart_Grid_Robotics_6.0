@@ -213,7 +213,6 @@
     <div class="container">
         <a href="/" class="back-button">← Back to Home</a>
         <button class="clear-button">Reset Counter</button>
-        <button onclick="exportToCSV()" class="export-button">Export to CSV</button>
         
         <div class="upload-form">
             {% if type in ['branded', 'fresh'] %}
@@ -391,6 +390,37 @@
         const retakeButton = document.getElementById('retakePhoto');
         const analyzeButton = document.getElementById('analyzePhoto');
 
+<<<<<<< HEAD
+=======
+        function switchTab(tab) {
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Add active class to selected tab
+            document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}Tab`).classList.add('active');
+            
+            // Stop camera and reset UI if switching away from camera tab
+            if (tab !== 'camera') {
+                stopCamera();
+            } else {
+                // Reset camera UI when switching to camera tab
+                video.style.display = 'block';
+                canvas.style.display = 'none';
+                startButton.style.display = 'inline-block';
+                captureButton.style.display = 'none';
+                captureButton.disabled = true;
+                retakeButton.style.display = 'none';
+                analyzeButton.style.display = 'none';
+            }
+        }
+
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
         startButton.addEventListener('click', async () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
@@ -400,9 +430,14 @@
                 });
                 video.srcObject = stream;
                 startButton.style.display = 'none';
+                captureButton.style.display = 'inline-block';
                 captureButton.disabled = false;
                 retakeButton.style.display = 'none';
                 analyzeButton.style.display = 'none';
+                
+                // Reset video display
+                video.style.display = 'block';
+                canvas.style.display = 'none';
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 alert('Could not access camera. Please ensure camera permissions are granted.');
@@ -455,7 +490,21 @@
                     }
                     updateResults(data);
                     
+<<<<<<< HEAD
+=======
+                    // Reset camera view and buttons
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
                     stopCamera();
+                    // Reset video and canvas display
+                    video.style.display = 'block';
+                    canvas.style.display = 'none';
+                    // Reset button states
+                    startButton.style.display = 'inline-block';
+                    captureButton.style.display = 'none';
+                    captureButton.disabled = true;
+                    retakeButton.style.display = 'none';
+                    analyzeButton.style.display = 'none';
+                    
                     switchTab('upload');
                 } catch (error) {
                     console.error('Error:', error);
@@ -474,6 +523,7 @@
                 video.style.display = 'block';
                 canvas.style.display = 'none';
                 startButton.style.display = 'inline-block';
+                captureButton.style.display = 'inline-block';
                 captureButton.disabled = true;
                 retakeButton.style.display = 'none';
                 analyzeButton.style.display = 'none';

@@ -65,6 +65,7 @@
         }
 
         .card-icon {
+            
             position: absolute;
             top: 20px;
             right: 20px;
@@ -127,22 +128,51 @@
 
         .pagination {
             display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 6px;
+            margin-top: 15px;
+            padding: 15px 16px;
+            border-top: 1px solid #f1f5f9;
+            {% if not recent_scans %}display: none;{% endif %}
         }
 
         .pagination-button {
-            padding: 8px 16px;
-            border: 1px solid #ddd;
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: white;
             cursor: pointer;
+            text-decoration: none;
+            color: #1a202c;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            min-width: 55px;
+            text-align: center;
+            font-size: 13px;
         }
 
-        .pagination-button:disabled {
+        .pagination-button:hover:not([disabled]) {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .pagination-button[disabled] {
             opacity: 0.5;
+            pointer-events: none;
             cursor: not-allowed;
+            background-color: #f1f5f9;
+        }
+
+        .page-info {
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 0 4px;
+            min-width: 70px;
+            text-align: center;
         }
 
         .pagination-button:not(:disabled):hover {
@@ -270,6 +300,7 @@
             margin: 0;
         }
 
+<<<<<<< HEAD
         .fa-sort {
             font-size: 14px;
             margin-right: 4px;
@@ -290,6 +321,73 @@
             background: #f8fafc;
             border-color: #cbd5e1;
         }
+=======
+        .page-info {
+            margin: 0 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .pagination-button[disabled] {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+        
+        .pagination-button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .sort-select {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+            color: #1a202c;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .sort-select:hover {
+            border-color: #cbd5e1;
+        }
+
+        .sort-button {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: white;
+            color: #1a202c;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .sort-button:hover {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .sort-button i {
+            font-size: 12px;
+        }
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
     </style>
 </head>
 <body>
@@ -349,11 +447,21 @@
             
             <div class="recent-scans">
                 <div class="table-header">
+<<<<<<< HEAD
                     <h3>Recent Scans</h3>
                     <button onclick="toggleSort()" class="export-btn" style="display: flex; align-items: center; gap: 5px;">
                         <i class="fas fa-sort"></i>
                         {{ 'Newest First' if sort_order == 'desc' else 'Oldest First' }}
                     </button>
+=======
+                    <h2>Recent Scans</h2>
+                    <div class="table-actions">
+                        <button onclick="toggleSort()" class="sort-button">
+                            <i class="fas fa-sort"></i>
+                            {{ 'Latest First' if sort_order == 'desc' else 'Oldest First' }}
+                        </button>
+                    </div>
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
                 </div>
                 <table>
                     <thead>
@@ -370,7 +478,11 @@
                     <tbody>
                         {% for scan in recent_scans %}
                         <tr>
+<<<<<<< HEAD
                             <td>{{ total_scans - ((current_page - 1) * 10 + loop.index - 1) if sort_order == 'desc' else (current_page - 1) * 10 + loop.index }}</td>
+=======
+                            <td>{{ scan.sequential_id }}</td>
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
                             <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 <span class="type-badge type-{{ scan.product_type }}">
@@ -389,6 +501,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+<<<<<<< HEAD
                 
                 <!-- Add pagination controls -->
                 <div class="pagination" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
@@ -411,6 +524,16 @@
                     >
                         Next
                     </button>
+=======
+                <div class="pagination">
+                    <a href="/dashboard?page={{ current_page - 1 }}" 
+                       class="pagination-button" 
+                       {% if current_page == 1 or not recent_scans %}disabled{% endif %}>Previous</a>
+                    <span class="page-info">Page {{ current_page }} of {{ total_pages }}</span>
+                    <a href="/dashboard?page={{ current_page + 1 }}" 
+                       class="pagination-button" 
+                       {% if current_page == total_pages or not recent_scans %}disabled{% endif %}>Next</a>
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
                 </div>
             </div>
         </div>
@@ -599,16 +722,79 @@
             window.location.href = `/dashboard?page=1&sort=${newSort}`;
         }
 
+<<<<<<< HEAD
         function previousPage() {
             if ({{ current_page }} > 1) {
                 window.location.href = `/dashboard?page={{ current_page - 1 }}&sort={{ sort_order }}`;
+=======
+        let currentPage = {{ current_page }};
+        const totalPages = {{ total_pages }};
+
+        function previousPage() {
+            if (currentPage > 1) {
+                console.log('Navigating to previous page:', currentPage - 1);
+                window.location.href = `/dashboard?page=${currentPage - 1}`;
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
             }
         }
-        
+
         function nextPage() {
+<<<<<<< HEAD
             if ({{ current_page }} < {{ total_pages }}) {
                 window.location.href = `/dashboard?page={{ current_page + 1 }}&sort={{ sort_order }}`;
             }
+=======
+            console.log('Next page function called');
+            console.log('Current page:', currentPage);
+            console.log('Total pages:', totalPages);
+            if (currentPage < totalPages) {
+                console.log('Navigating to next page:', currentPage + 1);
+                window.location.href = `/dashboard?page=${currentPage + 1}`;
+            }
+        }
+
+        // Enhanced error handling and event listeners for pagination
+        document.addEventListener('DOMContentLoaded', () => {
+            const nextBtn = document.getElementById('nextButton');
+            const prevBtn = document.getElementById('prevButton');
+            
+            if (nextBtn) {
+                nextBtn.onclick = (e) => {
+                    e.preventDefault();
+                    console.log('Next button clicked');
+                    if (!nextBtn.disabled) {
+                        nextPage();
+                    }
+                };
+            }
+            
+            if (prevBtn) {
+                prevBtn.onclick = (e) => {
+                    e.preventDefault();
+                    console.log('Previous button clicked');
+                    if (!prevBtn.disabled) {
+                        previousPage();
+                    }
+                };
+            }
+
+            // Log initial pagination state
+            console.log('Initial pagination state:', {
+                currentPage,
+                totalPages,
+                nextButtonDisabled: nextBtn?.disabled,
+                prevButtonDisabled: prevBtn?.disabled
+            });
+        });
+
+        function toggleSort() {
+            const currentUrl = new URL(window.location.href);
+            const currentSort = currentUrl.searchParams.get('sort') || 'desc';
+            const newSort = currentSort === 'desc' ? 'asc' : 'desc';
+            currentUrl.searchParams.set('sort', newSort);
+            currentUrl.searchParams.set('page', '1'); // Reset to first page when sorting
+            window.location.href = currentUrl.toString();
+>>>>>>> 42d64e0b1dcae20935742404ed2299256dc47b91
         }
     </script>
 </body>
