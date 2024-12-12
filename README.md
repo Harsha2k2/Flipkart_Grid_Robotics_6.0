@@ -3,6 +3,7 @@
 A Flask-based web application that analyzes packaged products and fresh produce using computer vision and AI. The system provides real-time analysis of product freshness, expiry dates, and quality assessment.
 
 🌐 Live Demo: [https://flipkart-grid-robotics-6-0.onrender.com/](https://flipkart-grid-robotics-6-0.onrender.com/)  
+
 ⚠️ Note: Due to free hosting plan, the website cold starts every 15 minutes of inactivity. Please open the link in a new tab while reading this README to allow for startup time.
 
 📚 Documentation & Demo Materials: [Google Drive Folder](https://drive.google.com/drive/folders/1olTw5sWuBg6nC59jvMfUxkVYtJwYheIl?usp=sharing)
