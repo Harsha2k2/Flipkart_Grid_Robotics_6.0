@@ -41,17 +41,6 @@ list/
 *.sqlite3
 *.log
 
-# Model files and data
-models/
-*.weights
-*.h5
-*.model
-*.pt
-*.pth
-*.onnx
-*.pkl
-*.joblib
-
 # Temporary files
 .DS_Store
 Thumbs.db
