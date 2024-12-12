@@ -24,6 +24,10 @@ A Flask-based web application that analyzes packaged products and fresh produce 
   - Historical Data Tracking
   - Statistics and Metrics
 
+## High Accuracy Through Model Synergy
+
+Our system achieves exceptional accuracy by combining specialized computer vision models with Google's Gemini Vision AI. This tag-team approach allows us to leverage both custom-trained models for specific tasks and Gemini's advanced visual understanding capabilities, resulting in robust and reliable product analysis.
+
 ## Setup
 
 1. Install dependencies:
