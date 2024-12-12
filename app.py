@@ -1,9 +1,11 @@
+import tensorflow as tf
 from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime
 import pytz
 import os
 from PIL import Image
 import io
+import torch
 import google.generativeai as genai
 from dotenv import load_dotenv
 import calendar
@@ -15,6 +17,10 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///product_analysis.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+
+expiry_model = tf.keras.models.load_model('C:\Users\Harsha\Desktop\Flipkart_Grid_Robotics_6.0\models\expiry\model_expiry.h5')
+freshness_model = torch.load('C:\Users\Harsha\Desktop\Flipkart_Grid_Robotics_6.0\models\freshness\freshness.pth')
 
 # Define database models
 class Analysis(db.Model):

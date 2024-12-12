@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ type.title() }} Product Analysis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body {
             background-color: #f5f4ef;
@@ -170,17 +171,41 @@
             color: #3b82f6;
         }
 
-        .download-button {
+        .submit-button {
             padding: 8px 16px;
-            background: #0f172a;
+            background: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-left: 10px;
         }
         
-        .download-button:hover {
-            background: #1e293b;
+        .submit-button:hover {
+            background: #45a049;
+        }
+
+        .export-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .export-btn:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .fa-sort {
+            font-size: 14px;
         }
     </style>
 </head>
@@ -199,7 +224,10 @@
             {% endif %}
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2>{{ type|title }} Products Analysis</h2>
-                <button onclick="exportToCSV()" class="download-button">Download Data</button>
+                <button onclick="toggleSort()" class="export-btn" style="display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-sort"></i>
+                    <span id="sortLabel">Newest First</span>
+                </button>
             </div>
             
             <!-- Tab buttons -->
@@ -267,26 +295,6 @@
             <tbody id="resultsBody">
             </tbody>
         </table>
-        {% elif type == 'all' %}
-        <table id="resultsTable">
-            <thead>
-                <tr>
-                    <th>S.No</th>
-                    <th>Timestamp</th>
-                    <th>Product Name</th>
-                    <th>Count</th>
-                    <!-- Branded Product Fields -->
-                    <th>Expiry Date</th>
-                    <th>Expired</th>
-                    <!-- Fresh Product Fields -->
-                    <th>Freshness Score</th>
-                    <th>Visual Issues</th>
-                    <th>Expected Life (Days)</th>
-                </tr>
-            </thead>
-            <tbody id="resultsBody">
-            </tbody>
-        </table>
         {% endif %}
     </div>
 
@@ -294,6 +302,7 @@
         document.getElementById('uploadForm').onsubmit = async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
+            formData.append('product_type', '{{ type }}');
             
             // Show loading indicator
             document.getElementById('loading').style.display = 'block';
@@ -304,11 +313,16 @@
                     body: formData
                 });
                 
+                const data = await response.json();
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
                 }
                 
-                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
                 updateResults(data);
             } catch (error) {
                 console.error('Error:', error);
@@ -326,26 +340,24 @@
             if ('{{ type }}' === 'branded') {
                 const isExpired = data.expiry_date === 'Not visible' ? 'N/A' : 
                                 (data.expected_life_span_days <= 0 ? 'Yes' : 'No');
-                const expectedLife = data.expiry_date === 'Not visible' ? 'N/A' : 
-                                   data.expected_life_span_days;
                 
                 row.innerHTML = `
                     <td>${data.serial_number}</td>
                     <td>${data.timestamp}</td>
-                    <td>${data.name}</td>
-                    <td>${data.expiry_date}</td>
-                    <td>${data.count}</td>
+                    <td>${data.brand || 'Unknown'}</td>
+                    <td>${data.expiry_date || 'Not visible'}</td>
+                    <td>${data.count || 1}</td>
                     <td>${isExpired}</td>
-                    <td>${expectedLife}</td>
+                    <td>${data.expected_life_span_days || 0}</td>
                 `;
             } else if ('{{ type }}' === 'fresh') {
                 row.innerHTML = `
                     <td>${data.serial_number}</td>
                     <td>${data.timestamp}</td>
-                    <td>${data.name}</td>
-                    <td>${data.count}</td>
-                    <td>${data.freshness}</td>
-                    <td>${data.expected_life_span_days}</td>
+                    <td>${data.product || 'Unknown'}</td>
+                    <td>${data.count || 1}</td>
+                    <td>${data.freshness || 'N/A'}</td>
+                    <td>${data.expected_life_span_days || 0}</td>
                 `;
             }
             
@@ -353,104 +365,24 @@
             document.getElementById('resultsTable').style.display = 'table';
         }
 
-        function exportToCSV() {
-            const table = document.querySelector('table');
-            if (!table) {
-                console.error('Table not found');
-                alert('No data available to export');
-                return;
-            }
-
-            let csvContent = [];
-            
-            // Get headers
-            const headerRow = table.querySelector('thead tr');
-            if (headerRow) {
-                const headers = Array.from(headerRow.querySelectorAll('th')).map(th => th.textContent.trim());
-                csvContent.push(headers.join(','));
-            }
-            
-            // Get data rows
-            const bodyRows = table.querySelectorAll('tbody tr');
-            bodyRows.forEach(row => {
-                const rowData = [];
-                row.querySelectorAll('td').forEach(cell => {
-                    let content = cell.textContent.trim();
-                    
-                    // Escape special characters if needed
-                    if (content.includes(',') || content.includes('"') || content.includes('\n')) {
-                        content = `"${content.replace(/"/g, '""')}"`;
-                    }
-                    rowData.push(content);
-                });
-                csvContent.push(rowData.join(','));
+        // Tab switching functionality
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
             });
-
-            if (csvContent.length <= 1) {
-                alert('No data available to export');
-                return;
-            }
-
-            // Create the CSV file
-            const csv = csvContent.join('\n');
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const productType = '{{ type }}'; // Get the product type from Jinja template
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `${productType}_products_${timestamp}.csv`;
-
-            // Create download link
-            const link = document.createElement('a');
-            if (window.navigator.msSaveOrOpenBlob) {
-                // For IE
-                window.navigator.msSaveOrOpenBlob(blob, filename);
-            } else {
-                // For modern browsers
-                const url = window.URL.createObjectURL(blob);
-                link.href = url;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                }, 0);
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}Tab`).classList.add('active');
+            
+            if (tab !== 'camera' && stream) {
+                stopCamera();
             }
         }
 
-        // Add this function to clear the table
-        function clearTable() {
-            const tbody = document.getElementById('resultsBody');
-            while (tbody.firstChild) {
-                tbody.removeChild(tbody.firstChild);
-            }
-        }
-
-        // Update the clear button to use fetch instead of direct link
-        document.querySelector('.clear-button').onclick = async (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to reset? This will clear all results.')) {
-                try {
-                    const type = '{{ type }}';
-                    const response = await fetch(`/reset/${type}`, {
-                        method: 'GET',
-                        headers: {
-                            'Cache-Control': 'no-cache'
-                        }
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Reset failed');
-                    }
-                    
-                    clearTable();
-                    window.location.reload(); // Force a page reload
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('Failed to reset counter');
-                }
-            }
-        };
-
+        // Camera functionality
         let stream = null;
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
@@ -459,30 +391,11 @@
         const retakeButton = document.getElementById('retakePhoto');
         const analyzeButton = document.getElementById('analyzePhoto');
 
-        function switchTab(tab) {
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // Add active class to selected tab
-            document.querySelector(`button[onclick="switchTab('${tab}')"]`).classList.add('active');
-            document.getElementById(`${tab}Tab`).classList.add('active');
-            
-            // Stop camera if switching away from camera tab
-            if (tab !== 'camera' && stream) {
-                stopCamera();
-            }
-        }
-
         startButton.addEventListener('click', async () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        facingMode: 'environment'  // Use back camera on mobile
+                        facingMode: 'environment'
                     } 
                 });
                 video.srcObject = stream;
@@ -501,22 +414,18 @@
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             
-            // Show captured image
             video.style.display = 'none';
             canvas.style.display = 'block';
             
-            // Update buttons
             captureButton.style.display = 'none';
             retakeButton.style.display = 'inline-block';
             analyzeButton.style.display = 'inline-block';
         });
 
         retakeButton.addEventListener('click', () => {
-            // Show video stream again
             video.style.display = 'block';
             canvas.style.display = 'none';
             
-            // Update buttons
             captureButton.style.display = 'inline-block';
             retakeButton.style.display = 'none';
             analyzeButton.style.display = 'none';
@@ -528,7 +437,6 @@
                 formData.append('image', blob, 'camera-capture.jpg');
                 formData.append('product_type', '{{ type }}');
                 
-                // Show loading indicator
                 document.getElementById('loading').style.display = 'block';
                 
                 try {
@@ -542,9 +450,11 @@
                     }
                     
                     const data = await response.json();
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
                     updateResults(data);
                     
-                    // Reset camera view
                     stopCamera();
                     switchTab('upload');
                 } catch (error) {
@@ -570,17 +480,15 @@
             }
         }
 
-        // Add function to load history when page loads
+        // Load initial history
         async function loadHistory() {
             try {
                 const response = await fetch('/history/{{ type }}');
                 const data = await response.json();
                 
-                // Clear existing rows
                 const tbody = document.getElementById('resultsBody');
                 tbody.innerHTML = '';
                 
-                // Add each item to the table
                 data.forEach(item => updateResults(item));
             } catch (error) {
                 console.error('Error loading history:', error);
@@ -589,6 +497,105 @@
 
         // Load history when page loads
         document.addEventListener('DOMContentLoaded', loadHistory);
+
+        // Reset counter functionality
+        document.querySelector('.clear-button').onclick = async (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to reset? This will clear all results.')) {
+                try {
+                    const response = await fetch(`/reset/{{ type }}`, {
+                        method: 'GET',
+                        headers: {
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Reset failed');
+                    }
+                    
+                    const tbody = document.getElementById('resultsBody');
+                    tbody.innerHTML = '';
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to reset counter');
+                }
+            }
+        };
+
+        let sortOrder = 'desc'; // Default to newest first
+        let allResults = []; // Store all results
+
+        function toggleSort() {
+            sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+            document.getElementById('sortLabel').textContent = 
+                sortOrder === 'desc' ? 'Newest First' : 'Oldest First';
+            
+            // Re-render the table with new sort order
+            renderResults();
+        }
+
+        function renderResults() {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+            
+            // Sort the results
+            const sortedResults = [...allResults].sort((a, b) => {
+                const dateA = new Date(a.timestamp);
+                const dateB = new Date(b.timestamp);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+            
+            sortedResults.forEach(data => {
+                const row = document.createElement('tr');
+                
+                if ('{{ type }}' === 'branded') {
+                    const isExpired = data.expiry_date === 'Not visible' ? 'N/A' : 
+                                    (data.expected_life_span_days <= 0 ? 'Yes' : 'No');
+                    
+                    row.innerHTML = `
+                        <td>${data.serial_number}</td>
+                        <td>${data.timestamp}</td>
+                        <td>${data.brand || 'Unknown'}</td>
+                        <td>${data.expiry_date || 'Not visible'}</td>
+                        <td>${data.count || 1}</td>
+                        <td>${isExpired}</td>
+                        <td>${data.expected_life_span_days || 0}</td>
+                    `;
+                } else if ('{{ type }}' === 'fresh') {
+                    row.innerHTML = `
+                        <td>${data.serial_number}</td>
+                        <td>${data.timestamp}</td>
+                        <td>${data.product || 'Unknown'}</td>
+                        <td>${data.count || 1}</td>
+                        <td>${data.freshness || 'N/A'}</td>
+                        <td>${data.expected_life_span_days || 0}</td>
+                    `;
+                }
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Update loadHistory function
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history/{{ type }}');
+                const data = await response.json();
+                allResults = data;
+                renderResults();
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        // Update updateResults function
+        function updateResults(data) {
+            allResults.unshift(data);
+            renderResults();
+            document.getElementById('resultsTable').style.display = 'table';
+        }
     </script>
 </body>
 </html> 

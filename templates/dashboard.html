@@ -145,6 +145,10 @@
             cursor: not-allowed;
         }
 
+        .pagination-button:not(:disabled):hover {
+            background: #f8fafc;
+        }
+
         .download-button {
             padding: 8px 16px;
             background: #0f172a;
@@ -265,6 +269,27 @@
             color: #0f172a;
             margin: 0;
         }
+
+        .fa-sort {
+            font-size: 14px;
+            margin-right: 4px;
+        }
+
+        .export-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .export-btn:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
     </style>
 </head>
 <body>
@@ -324,12 +349,16 @@
             
             <div class="recent-scans">
                 <div class="table-header">
-                    <h2>Recent Scans</h2>
+                    <h3>Recent Scans</h3>
+                    <button onclick="toggleSort()" class="export-btn" style="display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-sort"></i>
+                        {{ 'Newest First' if sort_order == 'desc' else 'Oldest First' }}
+                    </button>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>Serial No.</th>
                             <th>Time</th>
                             <th>Type</th>
                             <th>Item</th>
@@ -339,9 +368,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for scan in recent_scans[:10] %}
+                        {% for scan in recent_scans %}
                         <tr>
-                            <td>{{ scan.serial_number }}</td>
+                            <td>{{ total_scans - ((current_page - 1) * 10 + loop.index - 1) if sort_order == 'desc' else (current_page - 1) * 10 + loop.index }}</td>
                             <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 <span class="type-badge type-{{ scan.product_type }}">
@@ -355,16 +384,33 @@
                                 {{ scan.expiry_date if scan.product_type == 'branded' else scan.freshness }}
                             </td>
                             <td>{{ scan.count }}</td>
-                            <td>
-                                <span class="life-days">{{ scan.expected_life_span_days }}</span> days
-                            </td>
+                            <td>{{ scan.expected_life_span_days }} days</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-                <div class="pagination">
-                    <button class="pagination-button" onclick="previousPage()" id="prevButton" disabled>Previous</button>
-                    <button class="pagination-button" onclick="nextPage()" id="nextButton" {% if recent_scans|length <= 10 %}disabled{% endif %}>Next</button>
+                
+                <!-- Add pagination controls -->
+                <div class="pagination" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button 
+                        onclick="previousPage()" 
+                        {% if current_page == 1 %}disabled{% endif %}
+                        class="pagination-button"
+                        style="{% if current_page == 1 %}opacity: 0.5; cursor: not-allowed;{% endif %}"
+                    >
+                        Previous
+                    </button>
+                    <span style="padding: 8px 16px;">
+                        Page {{ current_page }} of {{ total_pages }}
+                    </span>
+                    <button 
+                        onclick="nextPage()" 
+                        {% if current_page == total_pages %}disabled{% endif %}
+                        class="pagination-button"
+                        style="{% if current_page == total_pages %}opacity: 0.5; cursor: not-allowed;{% endif %}"
+                    >
+                        Next
+                    </button>
                 </div>
             </div>
         </div>
@@ -499,100 +545,70 @@
         });
 
         function exportToCSV() {
-            const table = document.querySelector('.recent-scans table');
-            if (!table) {
-                console.error('Table not found');
-                alert('No data available to export');
-                return;
-            }
+            fetch('/history/all')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || data.length === 0) {
+                        alert('No data available to export');
+                        return;
+                    }
 
-            let csvContent = [];
-            
-            // Get headers
-            const headerRow = table.querySelector('thead tr');
-            if (headerRow) {
-                const headers = Array.from(headerRow.querySelectorAll('th')).map(th => th.textContent.trim());
-                csvContent.push(headers.join(','));
-            }
-            
-            // Get data rows
-            const bodyRows = table.querySelectorAll('tbody tr');
-            bodyRows.forEach(row => {
-                const rowData = [];
-                row.querySelectorAll('td').forEach(cell => {
-                    let content = '';
-                    
-                    // Handle type badge cells
-                    const typeBadge = cell.querySelector('.type-badge');
-                    if (typeBadge) {
-                        content = typeBadge.textContent.trim();
-                    }
-                    // Handle cells with life-days span
-                    else if (cell.querySelector('.life-days')) {
-                        content = cell.querySelector('.life-days').textContent.trim() + ' days';
-                    }
-                    // Handle cells with freshness classes
-                    else if (cell.classList.contains('freshness-good') || 
-                             cell.classList.contains('freshness-average') || 
-                             cell.classList.contains('freshness-poor')) {
-                        content = cell.textContent.trim();
-                    }
-                    // Handle regular cells
-                    else {
-                        content = cell.textContent.trim();
-                    }
-                    
-                    // Escape special characters
-                    if (content.includes(',') || content.includes('"') || content.includes('\n')) {
-                        content = `"${content.replace(/"/g, '""')}"`;
-                    }
-                    rowData.push(content);
-                });
-                csvContent.push(rowData.join(','));
-            });
+                    // Get current date and time for filename
+                    const now = new Date();
+                    const dateStr = now.toISOString().slice(0,19).replace(/[:-]/g, '');
+                    const filename = `product_analysis_report_${dateStr}.csv`;
 
-            if (csvContent.length <= 1) {
-                alert('No data available to export');
-                return;
-            }
+                    // Create CSV content
+                    const headers = ['Serial No.', 'Time', 'Type', 'Item', 'Details', 'Qty', 'Life'];
+                    let csvContent = headers.join(',') + '\n';
 
-            // Create the CSV file
-            const csv = csvContent.join('\n');
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `product_analysis_${timestamp}.csv`;
+                    // Reverse the data array to get oldest first
+                    const reversedData = [...data].reverse();
 
-            // Create download link
-            const link = document.createElement('a');
-            if (window.navigator.msSaveOrOpenBlob) {
-                // For IE
-                window.navigator.msSaveOrOpenBlob(blob, filename);
-            } else {
-                // For modern browsers
-                const url = window.URL.createObjectURL(blob);
-                link.href = url;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => {
+                    reversedData.forEach((row, index) => {
+                        const rowData = [
+                            index + 1,  // Start from 1 for oldest scan
+                            row.timestamp,
+                            row.type,
+                            row.name,
+                            row.details,
+                            row.quantity,
+                            row.life
+                        ].map(item => `"${item}"`).join(',');
+                        csvContent += rowData + '\n';
+                    });
+
+                    // Create and trigger download
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.setAttribute('download', filename);
+                    document.body.appendChild(link);
+                    link.click();
                     document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                }, 0);
-            }
+                })
+                .catch(error => {
+                    console.error('Error exporting data:', error);
+                    alert('Error exporting data');
+                });
         }
 
-        let currentPage = 1;
-        
+        function toggleSort() {
+            const currentSort = '{{ sort_order }}';
+            const newSort = currentSort === 'desc' ? 'asc' : 'desc';
+            window.location.href = `/dashboard?page=1&sort=${newSort}`;
+        }
+
         function previousPage() {
-            if (currentPage > 1) {
-                currentPage--;
-                window.location.href = `/dashboard?page=${currentPage}`;
+            if ({{ current_page }} > 1) {
+                window.location.href = `/dashboard?page={{ current_page - 1 }}&sort={{ sort_order }}`;
             }
         }
         
         function nextPage() {
-            currentPage++;
-            window.location.href = `/dashboard?page=${currentPage}`;
+            if ({{ current_page }} < {{ total_pages }}) {
+                window.location.href = `/dashboard?page={{ current_page + 1 }}&sort={{ sort_order }}`;
+            }
         }
     </script>
 </body>
