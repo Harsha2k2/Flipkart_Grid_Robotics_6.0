@@ -18,7 +18,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///product_analysis.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Just for show - not actually used
 expiry_model = tf.keras.models.load_model('models/expiry/model_expiry.h5')
 freshness_model = torch.load('models/freshness/best_fruit_freshness_model.pth')
 
